@@ -5,35 +5,15 @@ output:
     keep_md: yes
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = FALSE)
-```
+
 
 ## Introduction
 
 In this report, we analyze the physical activity of some individuals. In particular, we want to predict how well they did the activity. To do so, we have a training and a testing sets with data on individuals performing unilateral dumbbell biceps curl (see http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har). In the case of the training set, we also know how well they did the activity. This information is encoded in the variable "classe", being "A" the case in which they performed the exercise correctly and all the other values are such that they made some mistake: "B" throwing the elbows to the front, "C" lifting the dumbbell only halfway, "D" lowering the dumbbell only halfway, and "E" throwing the hips to the front.
 
-```{r libraries, include=FALSE}
-library(caret) #It contains the machine learning functions
-library(dplyr) #To modify data frames
-library(parallel) #For parallel computations
-library(doParallel) #For parallel computations
-```
 
-```{r downloading files, cache=TRUE}
-#I download and store the training data set
-if(!file.exists("pml-training.csv")) {
-  download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv",destfile="pml-training.csv")
-}
-training <- read.csv("pml-training.csv")
 
-#I download and store the testing data set
-if(!file.exists("pml-testing.csv")) {
-  download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv",destfile="pml-testing.csv")
-}
-testing <- read.csv("pml-testing.csv")
 
-```
 
 We download from https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv and "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv the training and testing sets, respectively. As usual with machine learning algorithms, we just analyze the training set, find a model to describe the outcome ("Classe"), and then apply the model to the testing frame.
 
@@ -53,7 +33,105 @@ Exploring the training data frame, we decide to get rid of the following variabl
 
 Notice that we apply the very same transformations to the testing set.
 
-```{r subsettion the non-NA variables}
+
+
+## Machine learning algorithm
+
+### Generating new training and testing sets
+
+Even if we already have a training and a testing data set, there are two reasons to split once again our training set into two new training and testing data sets:
+
+1) We do not know the values of "classe" for the testing data set, so we cannot make sure whether our model works or not with those data and
+
+2) the training set is large enough (it has 19622 observations) to split it.
+
+We then split the training set into two new training and testing sets, with 70% and 30% of the data in each new frame respectively using the function "createDataPartition", from caret package.
+
+
+
+### Building the model
+
+To start with, we use all the variables from the data frame as predictors but those we excluded in the previous section. As we will see, these variables give an accurate description of the problem.
+
+We then build a machine-learning model with the new training set. We decide to use random forest. In order to cross-validate the model, we use 5-fold cross validation. Once we build the model, we apply it to the new testing set. We compare the predictions to the actual values, showing both the confusion matrix and the accuracy of the predictions:
+
+
+```
+## [1] "The accuracy of the predictions is 0.998641"
+```
+
+```
+## [1] "We also show the table comparing the predictions to the actual values:"
+```
+
+```
+##           Reference
+## Prediction    A    B    C    D    E
+##          A 1674    2    0    0    0
+##          B    0 1137    1    0    0
+##          C    0    0 1025    4    0
+##          D    0    0    0  960    1
+##          E    0    0    0    0 1081
+```
+
+Random forest describes very well how the physical activity was performed, as seen in the high accuracy and the table comparing the predictions and the actual values of the new testing set. In conclussion, if we apply this model to another data set with the same variables, we expect to get a really small error in our predictions.
+
+## Predicting 
+
+We finally apply the model to the initial testing set:
+
+
+```
+## [1] "Table with the predictions corresponding to each observation of the testing frame:"
+```
+
+```
+##    Classe
+## 1       B
+## 2       A
+## 3       B
+## 4       A
+## 5       A
+## 6       E
+## 7       D
+## 8       B
+## 9       A
+## 10      A
+## 11      B
+## 12      C
+## 13      B
+## 14      A
+## 15      E
+## 16      E
+## 17      A
+## 18      B
+## 19      B
+## 20      B
+```
+
+Due to the high accuracy obtained in the previous section when building the model, we expect that most, if not all the predictions, are correct.
+
+## Apendix
+
+
+```r
+knitr::opts_chunk$set(echo = FALSE)
+library(caret) #It contains the machine learning functions
+library(dplyr) #To modify data frames
+library(parallel) #For parallel computations
+library(doParallel) #For parallel computations
+#I download and store the training data set
+if(!file.exists("pml-training.csv")) {
+  download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv",destfile="pml-training.csv")
+}
+training <- read.csv("pml-training.csv")
+
+#I download and store the testing data set
+if(!file.exists("pml-testing.csv")) {
+  download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv",destfile="pml-testing.csv")
+}
+testing <- read.csv("pml-testing.csv")
+
 #As one can see quickly, those variables with some NA values are such that **MOST** of the entries are actually NA. In the following, we subset the data frames training/testing, excluding the variables with NA values.
 x <- lapply(training,function(y){sum(is.na(y))})
 x2 <- x==0
@@ -68,21 +146,6 @@ testing <- select(testing,-c(X,kurtosis_roll_belt, kurtosis_picth_belt, kurtosis
 #We finally get rid of the variables cvtd_timestamp and new_window
 training <- select(training,-c(cvtd_timestamp,new_window))
 testing <- select(testing,-c(cvtd_timestamp,new_window))
-```
-
-## Machine learning algorithm
-
-### Generating new training and testing sets
-
-Even if we already have a training and a testing data set, there are two reasons to split once again our training set into two new training and testing data sets:
-
-1) We do not know the values of "classe" for the testing data set, so we cannot make sure whether our model works or not with those data and
-
-2) the training set is large enough (it has 19622 observations) to split it.
-
-We then split the training set into two new training and testing sets, with 70% and 30% of the data in each new frame respectively using the function "createDataPartition", from caret package.
-
-```{r partition}
 #We initialize the seed in order to make the report reproducible
 set.seed(112)
 #We generate the partition
@@ -91,15 +154,6 @@ inTrain <- createDataPartition(y=training$classe,p=.7,list=F)
 training_training <- training[inTrain,]
 #Defining the new testing set
 training_testing <- training[-inTrain,]
-```
-
-### Building the model
-
-To start with, we use all the variables from the data frame as predictors but those we excluded in the previous section. As we will see, these variables give an accurate description of the problem.
-
-We then build a machine-learning model with the new training set. We decide to use random forest. In order to cross-validate the model, we use 5-fold cross validation. Once we build the model, we apply it to the new testing set. We compare the predictions to the actual values, showing both the confusion matrix and the accuracy of the predictions:
-
-```{r model, cache=TRUE}
 #These commands configure the parallel processing
 cluster <- makeCluster(detectCores() - 1)
 registerDoParallel(cluster)
@@ -120,25 +174,9 @@ m <- confusionMatrix(predictions,training_testing$classe)
 sprintf("The accuracy of the predictions is %f", m$overall[1])
 sprintf("We also show the table comparing the predictions to the actual values:")
 m$table
-```
-
-Random forest describes very well how the physical activity was performed, as seen in the high accuracy and the table comparing the predictions and the actual values of the new testing set. In conclussion, if we apply this model to another data set with the same variables, we expect to get a really small error in our predictions.
-
-## Predicting 
-
-We finally apply the model to the initial testing set:
-
-```{r predict testing}
 #We predict the values of Classe for the testing set
 predictions_t <- predict(model,newdata=testing)
 df_predictions_t <- data.frame(Classe=predictions_t)
 sprintf("Table with the predictions corresponding to each observation of the testing frame:")
 df_predictions_t
-```
-
-Due to the high accuracy obtained in the previous section when building the model, we expect that most, if not all the predictions, are correct.
-
-## Apendix
-
-```{r, ref.label=knitr::all_labels(),echo=TRUE,eval=FALSE}
 ```
